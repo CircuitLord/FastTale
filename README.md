@@ -1,13 +1,15 @@
 # FastTale
 
-A performance mod for A Township Tale, uses MelonLoader. Disables/optimizes different stuff in the game to improve performance.
+A performance mod that increases CPU and GPU performance of the game without any (major) visual downgrades.
+
+Press F2 to open the configuration menu.
 
 Disclaimer: This repo does not contain any game files or assets, this is written by me and you must have the base game to run it.
 
 ## Features
-
-- **MSAA toggle (F2)** — starts with MSAA off. Press F2 to toggle it back on (game default 2x MSAA). Saves 1-3ms on the GPU depending on resolution.
-- More soon???
+- MSAA toggle (game default is 2x, not needed at all if using a higher base res). Saves 1-3ms on the GPU depending on resolution.
+- Disables Overview Camera (mystery unused camera wasting performance in the background), improves CPU performance by ~27%
+- More soon
 
 ## Install
 
