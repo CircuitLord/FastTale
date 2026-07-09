@@ -1,8 +1,8 @@
 # FastTale
 
-A performance mod for A Township Tale, uses MelonLoader.
+A performance mod for A Township Tale, uses MelonLoader. Disables/optimizes different stuff in the game to improve performance.
 
-Disables/optimizes different stuff in the game to improve performance.
+Disclaimer: This repo does not contain any game files or assets, this is written by me and you must have the base game to run it.
 
 ## Features
 
