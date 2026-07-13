@@ -101,28 +101,51 @@ namespace FastTale
                 _overviewCam.enabled = _overviewEnabled;
         }
 
-        // grass tufts are baked into chunk prefabs under known group names, scan each prefab once as it spawns
+        // grass tufts are baked into chunk prefabs under known group names
+        // when grass is on (default) we skip entirely so there's zero per-spawn cost
         private static void OnPointerSpawned(ChunkPrefabPointer.PointerInstance __instance)
         {
+            if (_grassEnabled)
+                return;
             GameObject root = __instance.Spawned;
             if (root == null)
                 return;
+            CollectGrass(root.transform);
+        }
+
+        private static void CollectGrass(Transform root)
+        {
             foreach (var t in root.GetComponentsInChildren<Transform>(true))
             {
                 string name = t.name;
                 if (!name.Contains("Grass LO Group") && !name.Contains("_Grass_"))
                     continue;
                 GrassObjects.Add(t.gameObject);
-                if (!_grassEnabled)
-                    t.gameObject.SetActive(false);
+                t.gameObject.SetActive(false);
             }
         }
 
         private static void ApplyGrass()
         {
-            GrassObjects.RemoveWhere(go => go == null);
-            foreach (var go in GrassObjects)
-                go.SetActive(_grassEnabled);
+            if (_grassEnabled)
+            {
+                // patch was tracking while off, re-enable everything and reset
+                GrassObjects.RemoveWhere(go => go == null);
+                foreach (var go in GrassObjects)
+                    go.SetActive(true);
+                GrassObjects.Clear();
+                return;
+            }
+
+            // turning off, patch skipped already-spawned chunks so scan loaded scenes
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (!scene.isLoaded)
+                    continue;
+                foreach (var root in scene.GetRootGameObjects())
+                    CollectGrass(root.transform);
+            }
         }
 
         private static void OnVolumeEnable(PostProcessVolume __instance)
