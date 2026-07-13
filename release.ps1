@@ -50,7 +50,14 @@ try {
     git -C $RepoDir push origin $Tag
     if ($LASTEXITCODE -ne 0) { Write-Error "error: git push failed" }
 
-    gh release create $Tag $Asset --repo (git -C $RepoDir remote get-url origin) --title "FastTale $Tag" --generate-notes
+    $RemoteUrl = git -C $RepoDir remote get-url origin
+    $RepoSlug = [regex]::Match($RemoteUrl, 'github\.com[:/](.+?)(\.git)?$').Groups[1].Value
+
+    $Notes = gh api "repos/$RepoSlug/releases/generate-notes" -f tag_name=$Tag --jq .body
+    if ($LASTEXITCODE -ne 0) { Write-Error "error: generating release notes failed" }
+    $Notes = ($Notes -join "`n") -replace '\*\*Full Changelog\*\*', 'Full changelog'
+
+    gh release create $Tag $Asset --repo $RepoSlug --title "FastTale $Tag" --notes $Notes
     if ($LASTEXITCODE -ne 0) { Write-Error "error: gh release create failed" }
 }
 finally {
