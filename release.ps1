@@ -20,8 +20,7 @@ if (-not $Version) {
 $Tag = "v$Version"
 Write-Host "Releasing FastTale $Tag"
 
-git -C $RepoDir rev-parse $Tag 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) {
+if (git -C $RepoDir tag --list $Tag) {
     Write-Error "error: tag $Tag already exists (bump the MelonInfo version first)"
 }
 
