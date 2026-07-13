@@ -6,8 +6,12 @@ Disclaimer: This repo does not contain any game files or assets, this is written
 
 ## Features
 
-- **MSAA toggle (F2)** — starts with MSAA off. Press F2 to toggle it back on (game default 2x MSAA). Saves 1-3ms on the GPU depending on resolution.
-- More soon???
+Press F2 for the settings panel. All toggles persist via MelonPreferences.
+
+- **MSAA toggle** — starts with MSAA off (game default 2x MSAA). Saves 1-3ms on the GPU depending on resolution.
+- **Overview Camera toggle** — disables the flat desktop camera whose render is wasted in VR. Off by default.
+- **Grass toggle** — hides the small grass tuft meshes. Clumps register themselves as chunks load (Harmony hook on `GrassClump.Start`), no scene scanning. On by default.
+- **Bloom toggle** — disables the Bloom post processing effect on every volume. On by default.
 
 ## Install
 
