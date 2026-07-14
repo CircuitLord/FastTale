@@ -2,7 +2,7 @@
 
 A performance mod for A Township Tale, uses MelonLoader. Disables/optimizes different stuff in the game to improve performance.
 
-Disclaimer: This repo does not contain any game files or assets, this is written by me and you must have the base game to run it.
+> **Disclaimer:** Fast Tale is an unofficial fan-made mod, not affiliated with or endorsed by Alta VR. It contains no game files or assets. All code is my own original work. You must own A Township Tale to use this mod. Use at your own risk.
 
 ## Features
 
