@@ -3,7 +3,6 @@ using Alta.Chunks;
 using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering.PostProcessing;
 
 [assembly: MelonInfo(typeof(FastTale.FastTaleMod), "FastTale", "1.0.3", "CircuitLord")]
@@ -11,7 +10,7 @@ using UnityEngine.Rendering.PostProcessing;
 
 namespace FastTale
 {
-    // perf mod, F2 opens the settings panel
+    // perf mod, configured through the mods menu (F10)
     public class FastTaleMod : MelonMod
     {
         private const int MsaaOn = 2; // game default (2x MSAA)
@@ -24,10 +23,6 @@ namespace FastTale
         private MelonPreferences_Entry<bool> _cfgGrass;
         private MelonPreferences_Entry<bool> _cfgBloom;
 
-        private bool _msaaEnabled;     // off
-        private bool _overviewEnabled; // off = Overview Camera disabled
-        private bool _guiOpen;
-
         private static bool _grassEnabled = true;
         private static bool _bloomEnabled = true;
         private static readonly HashSet<GameObject> GrassObjects = new HashSet<GameObject>();
@@ -37,19 +32,27 @@ namespace FastTale
 
         private Camera _overviewCam;
         private int _searchCooldown;
-        private Rect _winRect = new Rect(24, 24, 240, 0);
 
         public override void OnInitializeMelon()
         {
-            _cfg = MelonPreferences.CreateCategory("FastTale");
+            _cfg = MelonPreferences.CreateCategory("FastTale", "Graphical Settings");
             _cfgMsaa = _cfg.CreateEntry("Msaa", false, description: "MSAA on (2x) vs off");
-            _cfgOverview = _cfg.CreateEntry("OverviewCamera", false, description: "Render the stock flat Overview Camera (wasted in VR)");
             _cfgGrass = _cfg.CreateEntry("Grass", true, description: "Render the small grass tuft meshes");
             _cfgBloom = _cfg.CreateEntry("Bloom", true, description: "Bloom post processing");
-            _msaaEnabled = _cfgMsaa.Value;
-            _overviewEnabled = _cfgOverview.Value;
+
+            var advanced = MelonPreferences.CreateCategory("FastTale.Advanced", "Advanced Settings");
+            _cfgOverview = advanced.CreateEntry("OverviewCamera", false, description: "Render the stock flat Overview Camera (wasted in VR)");
             _grassEnabled = _cfgGrass.Value;
             _bloomEnabled = _cfgBloom.Value;
+
+            // grass/bloom need re-apply work on change (mods menu edits fire these), msaa/overview re-assert every frame
+            _cfgGrass.OnEntryValueChanged.Subscribe((_, on) => { _grassEnabled = on; ApplyGrass(); });
+            _cfgBloom.OnEntryValueChanged.Subscribe((_, on) =>
+            {
+                _bloomEnabled = on;
+                ApplyBloom();
+                LoggerInstance.Msg($"bloom -> {on} ({Volumes.Count} volumes)");
+            });
 
             HarmonyInstance.Patch(
                 AccessTools.PropertySetter(typeof(ChunkPrefabPointer.PointerInstance), "Spawned"),
@@ -58,22 +61,18 @@ namespace FastTale
                 AccessTools.Method(typeof(PostProcessVolume), "OnEnable"),
                 postfix: new HarmonyMethod(typeof(FastTaleMod), nameof(OnVolumeEnable)));
 
-            QualitySettings.antiAliasing = _msaaEnabled ? MsaaOn : MsaaOff;
-            LoggerInstance.Msg("FastTale ready. F2 = settings.");
+            QualitySettings.antiAliasing = _cfgMsaa.Value ? MsaaOn : MsaaOff;
+            LoggerInstance.Msg("FastTale ready. Settings in the mods menu (F10).");
         }
 
         public override void OnUpdate()
         {
             // re-assert each frame, the game's quality controller can flip it back
-            int want = _msaaEnabled ? MsaaOn : MsaaOff;
+            int want = _cfgMsaa.Value ? MsaaOn : MsaaOff;
             if (QualitySettings.antiAliasing != want)
                 QualitySettings.antiAliasing = want;
 
             ApplyOverview();
-
-            var kb = Keyboard.current;
-            if (kb != null && kb.f2Key.wasPressedThisFrame)
-                _guiOpen = !_guiOpen;
         }
 
         // overview cam is the flat desktop camera, wasted render in VR
@@ -97,8 +96,8 @@ namespace FastTale
                     return;
             }
 
-            if (_overviewCam.enabled != _overviewEnabled)
-                _overviewCam.enabled = _overviewEnabled;
+            if (_overviewCam.enabled != _cfgOverview.Value)
+                _overviewCam.enabled = _cfgOverview.Value;
         }
 
         // grass tufts are baked into chunk prefabs under known group names
@@ -162,9 +161,18 @@ namespace FastTale
             var profile = volume.HasInstantiatedProfile() ? volume.profile : volume.sharedProfile;
             if (profile == null || !profile.TryGetSettings<Bloom>(out var bloom))
                 return;
-            if (!BloomOriginal.ContainsKey(profile))
-                BloomOriginal[profile] = bloom.active;
-            bloom.active = on && BloomOriginal[profile];
+
+            // key originals by the shared profile: runtime clones appear after we already
+            // disabled bloom, and recording a clone's state as "original" locks bloom off
+            var key = volume.sharedProfile != null ? volume.sharedProfile : profile;
+            if (!BloomOriginal.ContainsKey(key))
+            {
+                bool original = key != profile && key.TryGetSettings<Bloom>(out var sharedBloom)
+                    ? sharedBloom.active
+                    : bloom.active;
+                BloomOriginal[key] = original;
+            }
+            bloom.active = on && BloomOriginal[key];
         }
 
         private static void ApplyBloom()
@@ -177,55 +185,6 @@ namespace FastTale
                 else
                     SetBloom(volume, _bloomEnabled);
             }
-        }
-
-        public override void OnGUI()
-        {
-            if (_guiOpen)
-                _winRect = GUILayout.Window(0xFA57A1E, _winRect, DrawWindow, "FastTale");
-        }
-
-        private void DrawWindow(int id)
-        {
-            GUILayout.Space(4);
-            GUILayout.Label("Performance Tweaks (default values best)");
-            
-            bool overview = GUILayout.Toggle(_overviewEnabled, _overviewEnabled ? " Overview Camera: ON" : " Overview Camera: OFF");
-            if (overview != _overviewEnabled)
-            {
-                _overviewEnabled = _cfgOverview.Value = overview;
-                MelonPreferences.Save();
-            }
-
-            GUILayout.Space(8);
-            GUILayout.Label("Graphical Settings");
-            
-            bool msaa = GUILayout.Toggle(_msaaEnabled, _msaaEnabled ? " MSAA: ON (2x)" : " MSAA: OFF");
-            if (msaa != _msaaEnabled)
-            {
-                _msaaEnabled = _cfgMsaa.Value = msaa;
-                MelonPreferences.Save();
-            }
-
-            bool grass = GUILayout.Toggle(_grassEnabled, _grassEnabled ? " Grass: ON" : " Grass: OFF");
-            if (grass != _grassEnabled)
-            {
-                _grassEnabled = _cfgGrass.Value = grass;
-                MelonPreferences.Save();
-                ApplyGrass();
-            }
-
-            bool bloom = GUILayout.Toggle(_bloomEnabled, _bloomEnabled ? " Bloom: ON" : " Bloom: OFF");
-            if (bloom != _bloomEnabled)
-            {
-                _bloomEnabled = _cfgBloom.Value = bloom;
-                MelonPreferences.Save();
-                ApplyBloom();
-            }
-
-            GUILayout.Space(6);
-            GUILayout.Label("F2 to close");
-            GUI.DragWindow(new Rect(0, 0, 10000, 20));
         }
     }
 }
